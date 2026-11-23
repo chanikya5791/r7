@@ -1,0 +1,98 @@
+name: Full stack
+
+# Builds every ShopLite service from the sibling repos, starts them with docker compose
+# (infra repo r5) and runs this API test suite and the Newman collection against the running stack.
+# The other repos are checked out at the same branch name as this run (falling back to the
+# repository default branch). For private repos, add a SHOPLITE_REPOS_TOKEN secret: a token
+# with read access to r1-r7.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch to check out in every repo
+        required: false
+
+env:
+  REF: ${{ github.event.inputs.ref || github.head_ref || github.ref_name }}
+
+jobs:
+  full-stack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out r1
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/r1
+          ref: ${{ env.REF }}
+          path: r1
+          token: ${{ secrets.SHOPLITE_REPOS_TOKEN || github.token }}
+      - name: Check out r2
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/r2
+          ref: ${{ env.REF }}
+          path: r2
+          token: ${{ secrets.SHOPLITE_REPOS_TOKEN || github.token }}
+      - name: Check out r3
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/r3
+          ref: ${{ env.REF }}
+          path: r3
+          token: ${{ secrets.SHOPLITE_REPOS_TOKEN || github.token }}
+      - name: Check out r4
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/r4
+          ref: ${{ env.REF }}
+          path: r4
+          token: ${{ secrets.SHOPLITE_REPOS_TOKEN || github.token }}
+      - name: Check out r5
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/r5
+          ref: ${{ env.REF }}
+          path: r5
+          token: ${{ secrets.SHOPLITE_REPOS_TOKEN || github.token }}
+      - name: Check out r6
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/r6
+          ref: ${{ env.REF }}
+          path: r6
+          token: ${{ secrets.SHOPLITE_REPOS_TOKEN || github.token }}
+      - name: Check out r7
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/r7
+          ref: ${{ env.REF }}
+          path: r7
+          token: ${{ secrets.SHOPLITE_REPOS_TOKEN || github.token }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Start the stack
+        working-directory: r5
+        run: make up
+      - name: API tests
+        working-directory: r7
+        env:
+          CI: 'true'
+        run: npm ci && npm test
+      - name: Newman collection
+        working-directory: r7
+        run: npm run test:newman
+      - name: Service logs
+        if: failure()
+        working-directory: r5
+        run: docker compose logs --no-color
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: api-test-report
+          path: r7/reports
+          if-no-files-found: ignore
